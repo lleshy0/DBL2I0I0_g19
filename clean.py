@@ -14,6 +14,6 @@ if __name__ == "__main__":
     cleaned_df = dropna_df.drop_duplicates()
     
 
-    cleaned_df_train = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=True, stratify=None)
-    print(cleaned_df_train)
+    cleaned_df_split = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=True, stratify=None)
+    print(cleaned_df_split)
     

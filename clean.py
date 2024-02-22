@@ -10,7 +10,7 @@ def xes_to_df(file_path):
     return event_df
 
 if __name__ == "__main__":
-    file_path = r"C:\Users\macie\Downloads\BPI_Challenge_2012.xes.gz"
+    file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
     event_df = xes_to_df(file_path)
     dropna_df = event_df.dropna()
     cleaned_df = dropna_df.drop_duplicates()

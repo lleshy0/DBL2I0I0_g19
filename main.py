@@ -9,5 +9,5 @@ def import_xes(file_path):
     print("Start activities: {}\nEnd activities: {}".format(start_activities, end_activities))
 
 if __name__ == "__main__":
-    file_path = r"C:\Users\20221343\Downloads\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes.gz"
+    file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
     import_xes(file_path)

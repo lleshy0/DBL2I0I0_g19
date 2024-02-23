@@ -9,26 +9,36 @@ def xes_to_df(file_path):
     
     return event_df, event_log
 
-def make_baseline(df_train):
-    ##tracefilter_log_pos = pm.filter_event_attribute_values(df_train, "case:concept:name", ["173688"], level="event", retain=True)
-    df_train.sort_values('case:concept:name')
-    print(df_train)
-    df_train['time_until_next'] = df_train["time:timestamp"].shift(-1) - df_train["time:timestamp"]
+def make_baseline_time(df_train):
+    #get required columns and add time difference column
+    df_sorted = df_train[['case:concept:name','concept:name','lifecycle:transition','time:timestamp']]
+    df_sorted.sort_values(['case:concept:name', 'time:timestamp'], inplace = True)
+    df_sorted['time_until_next'] = df_sorted['time:timestamp'].shift(-1) - df_sorted['time:timestamp']
+    
+    #add relative index
+    label_encoder = LabelEncoder()
+    df_sorted['encoded_concept:name'] = label_encoder.fit_transform(df_sorted['concept:name'])
+    df_sorted['relative_index'] = df_sorted.groupby('case:concept:name').cumcount() + 1
+    #remove worthless values
+    df_sorted['time_until_next'] = df_sorted['time_until_next'].mask(df_sorted['time_until_next'] < pd.Timedelta("0 days"))
+    
+    #tracefilter_log_pos = pm.filter_event_attribute_values(df_sorted, "case:concept:name", ["173688"], level="event", retain=True)
 
-    submitted_df = df_train.loc[df_train['concept:name'] == "A_SUBMITTED"].copy()
-
-    average_delay = submitted_df['time_until_next'].mean()
-    print(average_delay)
-
+    #setup the dataframe
     average_df = pd.DataFrame()
+    cases = ['A_SUBMITTED', 'A_PARTLYSUBMITTED', 'A_PREACCEPTED', 'W_Completeren aanvraag', 'A_ACCEPTED', 'O_SELECTED',  'A_FINALIZED', 
+             'O_CREATED', 'O_SENT', 'O_SENT_BACK' ,'W_Valideren aanvraag',  'A_REGISTERED', 'A_APPROVED', 'O_ACCEPTED', 
+             'W_Wijzigen contractgegevens', 'A_ACTIVATED', 'A_DECLINED', 'A_CANCELLED','W_Completeren aanvraag', 
+             'W_Nabellen incomplete dossiers', 'W_Afhandelen leads', 'W_Nabellen offertes', 'W_Beoordelen fraude']
 
-    for case in df_train['concept:name']:
-        temp_df = df_train.loc[df_train['concept:name'] == case].copy()
+    #get all the average times for the tasks
+    for case in cases:
+        temp_df = df_sorted.loc[df_sorted['concept:name'] == case].copy()
         temp_data = [[case, temp_df['time_until_next'].mean()]]
-        # print(average_df)
         average_df = average_df._append(temp_data, ignore_index = True)
 
     print(average_df)
+    return(average_df)
 
 def make_baseline_action(df_train):
 
@@ -59,13 +69,16 @@ def make_baseline_action(df_train):
     lookup_table = most_popular_actions[['relative_index','concept:name']]
 
     print(lookup_table)
-
+    
                             
 
 if __name__ == "__main__":
-    file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
+    file_path = "BPI_Challenge_2012.xes.gz"
     event_df, event_log = xes_to_df(file_path)
     cleaned_df = event_df.drop_duplicates()
 
     df_train, df_test = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=False, stratify=None)
+    make_baseline_time(df_train)
     make_baseline_action(df_train)
+    
+    

@@ -96,7 +96,7 @@ def make_naive_prediction(df_train, df_test):
 
 
 if __name__ == "__main__":
-    file_path = r"BPI_Challenge_2012.xes"
+    file_path = input("Enter the name (same folder) or path of the xes file containing the dataset: ")
     event_df, event_log = xes_to_df(file_path)
     cleaned_df = event_df.drop_duplicates()
 

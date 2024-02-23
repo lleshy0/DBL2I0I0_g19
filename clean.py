@@ -12,7 +12,6 @@ def xes_to_df(file_path):
 if __name__ == "__main__":
     file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
     event_df = xes_to_df(file_path)
-    dropna_df = event_df.dropna()
     cleaned_df = dropna_df.drop_duplicates()
     print(cleaned_df)
     # cleaned_df['trace_id'] = cleaned_df['org:resource'].astype(str) + '_' + cleaned_df['lifecycle:transition'].astype(str)

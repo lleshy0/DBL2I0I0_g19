@@ -92,11 +92,11 @@ def make_naive_prediction(df_train, df_test):
     # then we will merge on the average time untill the next action based on the current action
     df_test = df_test.merge(time_at_action, on='concept:name', how='left')
 
-    df_test.to_csv('naive_prediciton.csv', index=False)
+    df_test.to_csv('naive_prediction.csv', index=False)
 
 
 if __name__ == "__main__":
-    file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
+    file_path = r"BPI_Challenge_2012.xes"
     event_df, event_log = xes_to_df(file_path)
     cleaned_df = event_df.drop_duplicates()
 

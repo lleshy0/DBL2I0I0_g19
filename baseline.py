@@ -65,7 +65,6 @@ def make_baseline_action(df_train):
 if __name__ == "__main__":
     file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
     event_df, event_log = xes_to_df(file_path)
-    dropna_df = event_df.dropna()
     cleaned_df = dropna_df.drop_duplicates()
 
     df_train, df_test = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=False, stratify=None)

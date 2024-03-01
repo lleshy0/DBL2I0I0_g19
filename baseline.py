@@ -93,6 +93,15 @@ def make_naive_prediction(df_train, df_test):
     df_test = df_test.merge(time_at_action, on='concept:name', how='left')
 
     df_test.to_csv('naive_prediction.csv', index=False)
+    
+def split_code(cleaned_df):
+    df_train, df_test = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=False, stratify=None)
+    invalid_date = df_test.iloc[0].loc['time:timestamp']
+    train_traces = df_train['case:concept:name'].loc[df_train['time:timestamp'] > invalid_date]
+    train_traces = train_traces.drop_duplicates()
+    for trace in train_traces:
+        df_train = df_train.drop(df_train[df_train['case:concept:name'] == trace].index)
+    return df_train, df_test
 
 
 if __name__ == "__main__":
@@ -100,7 +109,6 @@ if __name__ == "__main__":
     event_df, event_log = xes_to_df(file_path)
     cleaned_df = event_df.drop_duplicates()
 
-    df_train, df_test = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=False, stratify=None)
+    df_train, df_test = split_code(cleaned_df)
     make_naive_prediction(df_train, df_test)
-
 

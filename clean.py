@@ -12,22 +12,12 @@ def xes_to_df(file_path):
 if __name__ == "__main__":
     file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
     event_df = xes_to_df(file_path)
-    cleaned_df = dropna_df.drop_duplicates()
-    print(cleaned_df)
-    # cleaned_df['trace_id'] = cleaned_df['org:resource'].astype(str) + '_' + cleaned_df['lifecycle:transition'].astype(str)
+    cleaned_df = event_df.drop_duplicates()
 
-    # train_traces, test_traces = train_test_split(cleaned_df['trace_id'].unique(), test_size=0.25, random_state=42)
+    train_traces, test_traces = pm4py.split_train_test(cleaned_df, train_percentage=0.75, case_id_key='case:concept:name')
 
+    sorted_test = test_traces.sort_values(by='case:REG_DATE')
 
-    # train_set = cleaned_df[cleaned_df['trace_id'].isin(train_traces)]
-    # test_set = cleaned_df[cleaned_df['trace_id'].isin(test_traces)]
+    lowest_start_time = sorted_test['case:REG_DATE'].iloc[0]
 
-
-    # train_set = train_set.drop(columns=['trace_id'])
-    # test_set = test_set.drop(columns=['trace_id'])
-
-
-    # train_set.to_csv('train_set.csv', index=False)
-    # test_set.to_csv('test_set.csv', index=False)
-
-    
+    train_traces = train_traces[train_traces['time:timestamp'] <= lowest_start_time]

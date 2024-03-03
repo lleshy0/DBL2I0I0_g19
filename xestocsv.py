@@ -12,6 +12,6 @@ def convert_xes_to_csv(xes_file_path, csv_file_path):
     pd.to_csv(csv_file_path, index=False)
 
 if __name__ == "__main__":
-    xes_file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\BPI_Challenge_2012.xes\BPI_Challenge_2012.xes"
-    csv_file_path = r"C:\Users\20191663\Documents\Y5\Y5Q3\2IOI0 - DBL process mining\BPI Challenge 2012_1_all\csv_2012"
+    xes_file_path = "BPI_Challenge_2012.xes"
+    csv_file_path = "csv_2012.csv"
     convert_xes_to_csv(xes_file_path, csv_file_path)

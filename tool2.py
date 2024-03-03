@@ -1,28 +1,136 @@
-def clean_data():
-    data_frame.drop_duplicates()
-    
-def split_data(event_log):
-    o
-    
-def appendNextAction(data_frame):
-     # sort the dataframe first by case and then by time
-    data_frame = data_frame.sort_values(by=['case:concept:name', 'time:timestamp'])
+import pm4py as pm
+from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from pm4py.objects.conversion.log import converter as xes_converter
 
-    # add a relative index to each action in the case
-    data_frame['relative_index'] = data_frame.groupby('case:concept:name').cumcount() + 1
+def xes_to_df(file_path):
+    event_log = pm.read_xes(file_path)
+    event_df = pm.convert_to_dataframe(event_log)
+
+    return event_df, event_log
     
-    #add a column with the next action relative to the current action
-    data_frame['next_action'] = data_frame['case:concept:name'].shift(-1)
+def clean_data(data_frame):
+    return data_frame.drop_duplicates()
+    
+def split_data(cleaned_df):
+    train_traces, test_traces = pm.split_train_test(cleaned_df, train_percentage=0.75, case_id_key='case:concept:name')
+    #sorted_test = test_traces.sort_values(by='case:REG_DATE')
+    #lowest_start_time = sorted_test['case:REG_DATE'].iloc[0]
+    #train_traces = train_traces[train_traces['time:timestamp'] <= lowest_start_time]
+    return train_traces, test_traces
+
+def get_next_event(group):
+    group['next_event'] = group['concept:name'].shift(-1)
+    return group
+
+def append_next_event(df):
+     # sort the dataframe first by case and then by time
+    df = df.sort_values(by=['case:concept:name', 'time:timestamp'])
+    
+    # add a column with the next action relative to the current action
+    df = df.groupby('case:concept:name', group_keys=False).apply(get_next_event)
+    
+    # the last event in every trace will get a NaN value. We fill it with a custom marker
+    df['next_event'] = df['next_event'].fillna('[TRACE_END]')
+    
+    
+    return df
+
+def split_timestamps(df):
+    
+    temp = pd.DataFrame()
+    temp['time:timestamp'] = pd.to_datetime(df['time:timestamp'])
+    
+    # Extract components
+    temp['year'] = temp['time:timestamp'].dt.year
+    temp['month'] = temp['time:timestamp'].dt.month
+    temp['day'] = temp['time:timestamp'].dt.day
+    temp['hour'] = temp['time:timestamp'].dt.hour
+    temp['minute'] = temp['time:timestamp'].dt.minute
+    
+    temp.drop(['time:timestamp'], axis=1, inplace=True)
+    
+    return temp
+    
+def prep_features(df, enc1, enc2):
+    # create new df without the 'next_event' column
+    features = df.drop(['next_event'], axis=1)
+    
+    # add year, month, day, hour, minute columns for each timestamp
+    features = pd.concat([features, split_timestamps(features)], axis=1)
+    
+    # drop timestamp columns
+    features.drop(['time:timestamp'], axis=1, inplace=True)
+    features.drop(['case:REG_DATE'], axis=1, inplace=True)
+    
+    # encode categorical variables
+    features['concept:name'] = enc1.fit_transform(features['concept:name'])
+    features['lifecycle:transition'] = enc2.fit_transform(features['lifecycle:transition'])
+    
+    # return df with added encoding
+    return features
     
 def train_random_forest(train_features, train_labels):
-    # import random forest
-    from sklearn.ensemble import RandomForestRegressor
     # instantiate model with 1000 decision trees
-    rf = RandomForestRegressor(n_estimators = 1000, random_state = 42)
+    rf = RandomForestClassifier(n_estimators = 100, random_state = 42)
+    
     # train the model on training data
     rf.fit(train_features, train_labels)
+    
+    return rf
+
+def evaluate_prediction(test_labels, prediction_labels):
+    # set up temp df
+    df = pd.DataFrame()
+    df['A'] = test_labels
+    df['B'] = prediction_labels
+    
+    # Count the number of rows where test equals prediction
+    same_values_count = len(df[df['A'] == df['B']])
+
+    # Total number of rows in the DataFrame
+    total_rows = len(df)
+
+    # Calculate the percentage
+    return (same_values_count / total_rows) * 100
+
+def predict_next_event(event_df):
+    event_df = clean_data(event_df)
+    event_df = append_next_event(event_df)
+    
+    train_df, test_df = split_data(event_df)
+    
+    # label encoder for concept:name
+    enc1 = LabelEncoder()
+    
+    # label encoder for lifecycle:transition
+    enc2 = LabelEncoder()
+    
+    # prepare train labels and features
+    train_labels = enc1.fit_transform(train_df['next_event'])
+    train_features = prep_features(train_df, enc1, enc2)
+    
+    # prepare test labels and features
+    test_labels = enc1.fit_transform(test_df['next_event'])
+    test_features = prep_features(test_df, enc1, enc2)
+    
+    # train prediction model
+    rf = train_random_forest(train_features, train_labels)
+    
+    # perform prediction on test features
+    predicted_labels = rf.predict(test_features)
+    
+    # print prediction results
+    print("Performance score for event prediction" + str(evaluate_prediction(test_labels, predicted_labels)))
+    
+    # remove added columns from test_df
+    test_df.drop(['next_event'], axis=1, inplace=True);
+    
+    return test_df, enc1.inverse_transform(predicted_labels)
 
 if __name__ == "__main__":
-    file_path = input("Enter the name (same folder) or path of the xes file containing the dataset: ")
+    file_path = "BPI_Challenge_2012.xes"
     event_df, event_log = xes_to_df(file_path)
     
+    predict_next_event(event_df)

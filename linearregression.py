@@ -6,6 +6,7 @@ from sklearn.linear_model import LinearRegression
 from scipy import stats
 import warnings
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def xes_to_df(file_path):
@@ -29,7 +30,7 @@ def make_baseline_time(df_train):
     df_sorted['time_until_next'] = df_sorted['time_until_next'].mask(
         df_sorted['time_until_next'] < pd.Timedelta("0 days"))
 
-        # setup the dataframe
+    # setup the dataframe
     average_df = pd.DataFrame()
     cases = ['A_SUBMITTED', 'A_PARTLYSUBMITTED', 'A_PREACCEPTED', 'W_Completeren aanvraag', 'A_ACCEPTED', 'O_SELECTED',
              'A_FINALIZED',
@@ -44,9 +45,11 @@ def make_baseline_time(df_train):
         average_df = average_df._append(temp_data, ignore_index=True)
 
     average_df.rename(columns={0: 'concept:name', 1: 'time_until_next'}, inplace=True)
+
     return (average_df)
 
-def make_linear_regression_time(df_train):
+
+def make_linear_regression_time(df_train, plot=True):
     # get required columns and add time difference column
     df_sorted = df_train[['case:concept:name', 'concept:name', 'lifecycle:transition', 'time:timestamp']]
     df_sorted.sort_values(['case:concept:name', 'time:timestamp'], inplace=True)
@@ -62,17 +65,30 @@ def make_linear_regression_time(df_train):
 
     df_train_regression = df_sorted.copy()
     df_train_regression = df_train_regression.dropna()
-    df_train_regression['time_until_next_millisec'] = df_train_regression['time_until_next']/ np.timedelta64(1,'ms')
+    df_train_regression['time_until_next_millisec'] = df_train_regression['time_until_next'] / np.timedelta64(1, 'ms')
     df_train_regression['z'] = np.abs(stats.zscore(df_train_regression['time_until_next_millisec']))
     df_train_regression = df_train_regression.drop(df_train_regression[df_train_regression['z'] > 3].index)
-    
+
     x_train = df_train_regression['relative_index']
     y_train = df_train_regression['time_until_next_millisec']
     x_train = x_train.to_frame()
     y_train = y_train.to_frame()
+
     regr = LinearRegression()
-    regr.fit(x_train,y_train)
+    regr.fit(x_train, y_train)
+
+    if plot:
+        plt.figure(figsize=(10, 6))
+        plt.scatter(x_train, y_train, color='blue', label='Actual Data')
+        plt.plot(x_train, regr.predict(x_train), color='red', linewidth=3, label='Linear Regression Line')
+        plt.title('Scatterplot with Linear Regression Line')
+        plt.xlabel('Relative Index')
+        plt.ylabel('Time Until Next (milliseconds)')
+        plt.legend()
+        plt.show()
+
     return regr
+
 
 def make_baseline_action(df_train):
     # first we drop the columns not needed for the baseline
@@ -101,7 +117,7 @@ def make_baseline_action(df_train):
     # make a simple lookup table to find the most popular action
     lookup_table = most_popular_actions[['relative_index', 'concept:name']]
 
-    return(lookup_table)
+    return (lookup_table)
 
 
 def make_naive_prediction(df_train, df_test):
@@ -114,24 +130,43 @@ def make_naive_prediction(df_train, df_test):
     df_test = df_test.sort_values(by=['case:concept:name', 'time:timestamp'])
     df_test['relative_index'] = df_test.groupby('case:concept:name').cumcount() + 1
 
-    # because the merge adds a column with the same name we will rename the colum from lookup_table
+    # because the merge adds a column with the same name we will rename the column from lookup_table
     action_at_index.rename(columns={'concept:name': 'naive_prediction_action'}, inplace=True)
     # add one to the relative index because you want to predict the next action not the current action
     action_at_index['relative_index'] = action_at_index['relative_index'] - 1
     df_test = df_test.merge(action_at_index, on='relative_index', how='left')
 
-    # then we will merge on the average time untill the next action based on the current action
+    # then we will merge on the average time until the next action based on the current action
     df_test = df_test.merge(time_at_action, on='concept:name', how='left')
-    
+
     # linear regression
     x_test = df_test['relative_index']
     x_test = x_test.to_frame()
+
     df_test['time_regression'] = regr.predict(x_test)
-    
+
+    evaluate_prediction(df_test)
+    print(df_test["naive_prediction_action"])
+    print(df_test["relative_index"])
     print(df_test)
 
+    # Plot scatter plot for test data with linear regression line
+    plt.figure(figsize=(10, 6))
+    plt.scatter(df_test['relative_index'], df_test['concept:name'], color='blue', label='Test Data')
+    plt.plot(df_test['relative_index'], df_test['time_regression'], color='red', linewidth=3,
+             label='Linear Regression Line')
+    plt.title('Scatterplot for Test Data with Linear Regression Line')
+    plt.xlabel('Relative Index')
+    plt.ylabel('Time Until Next (milliseconds)')
+    plt.ylim(-2, 24)
+    plt.xlim(0, 130)
+    plt.legend()
+    plt.show()
+
+    # Save the DataFrame to a CSV file
     df_test.to_csv('naive_prediction.csv', index=False)
-    
+
+
 def split_code(cleaned_df):
     df_train, df_test = train_test_split(cleaned_df, train_size=0.75, random_state=None, shuffle=False, stratify=None)
     invalid_date = df_test.iloc[0].loc['time:timestamp']
@@ -140,6 +175,7 @@ def split_code(cleaned_df):
     for trace in train_traces:
         df_train = df_train.drop(df_train[df_train['case:concept:name'] == trace].index)
     return df_train, df_test
+
 
 def evaluate_prediction(df_test):
     length = len(df_test)
@@ -154,13 +190,14 @@ def evaluate_prediction(df_test):
     while i < length:
         if df_test.iloc[i].loc['naive_prediction_action'] == df_test_shifted.iloc[i].loc['concept:name']:
             count = count + 1
-        i = i + 1            
-    accuracy = count/len(df_test) * 100
+        i = i + 1
+    accuracy = count / len(df_test) * 100
     print("Event accuracy: {}%".format(accuracy))
+
 
 if __name__ == "__main__":
     warnings.filterwarnings('ignore')
-    file_path = input("Enter the name (same folder) or path of the xes file containing the dataset: ")
+    file_path = "BPI_Challenge_2012.xes.gz"
     event_df, event_log = xes_to_df(file_path)
     cleaned_df = event_df.drop_duplicates()
 

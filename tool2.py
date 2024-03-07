@@ -5,7 +5,6 @@ from sklearn.preprocessing import LabelEncoder
 import numpy as np
 from pm4py.objects.conversion.log import converter as xes_converter
 
-
 def xes_to_df(file_path):
     event_log = pm.read_xes(file_path)
     event_df = pm.convert_to_dataframe(event_log)

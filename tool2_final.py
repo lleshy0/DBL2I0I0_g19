@@ -14,6 +14,12 @@ def get_next_event(group):
 
     return group
 
+def xes_to_df(file_path):
+    event_log = pm.read_xes(file_path)
+    event_df = pm.convert_to_dataframe(event_log)
+
+    return event_df, event_log
+
 def append_next_event(df):
      # sort the dataframe first by case and then by time
     df = df.sort_values(by=['case:concept:name', 'time:timestamp'])
@@ -38,6 +44,9 @@ def split_data(cleaned_df):
 
     return train_traces, test_traces
 
+def clean_data(data_frame):
+    return data_frame.drop_duplicates()
+
 def make_linear_regression_time(df_train):
     # get required columns and add time difference column
     df_sorted = df_train[['case:concept:name', 'concept:name', 'lifecycle:transition', 'time:timestamp']]
@@ -50,7 +59,7 @@ def make_linear_regression_time(df_train):
     df_sorted['relative_index'] = df_sorted.groupby('case:concept:name').cumcount() + 1
     # remove worthless values
     df_sorted['time_until_next'] = df_sorted['time_until_next'].mask(
-        df_sorted['time_until_next'] < pd.Timedelta("0 days"))
+        df_sorted['time_until_next'] < pd.Timedelta("0 days"), other = pd.Timedelta("0 days"))
 
     df_train_regression = df_sorted.copy()
     df_train_regression = df_train_regression.dropna()
@@ -70,10 +79,16 @@ def predict_time(train_df, test_df):
     
     regr = make_linear_regression_time(train_df)
     
-    # to be added
-    # regression time = ......
+    # sort test df on concept and time and add relative index
+    test_df = test_df.sort_values(by=['case:concept:name', 'time:timestamp'])
+    test_df['relative_index'] = test_df.groupby('case:concept:name').cumcount() + 1
+
+    # add the prediction    
+    x_test = test_df['relative_index']
+    x_test = x_test.to_frame()
+    test_df['time_prediction'] = regr.predict(x_test)
     
-    return regression_time
+    return(test_df)
     
     
 def split_timestamps(df):
@@ -134,6 +149,51 @@ def evaluate_event_prediction(test_labels, prediction_labels):
     # Calculate the percentage
     return (same_values_count / total_rows) * 100
 
+def evaluate_prediction(test_labels, prediction_labels):
+    # set up temp df
+    df = pd.DataFrame()
+    df['A'] = test_labels
+    df['B'] = prediction_labels
+    
+    # Count the number of rows where test equals prediction
+    same_values_count = len(df[df['A'] == df['B']])
+
+    # Total number of rows in the DataFrame
+    total_rows = len(df)
+
+    # Calculate the percentage
+    return (same_values_count / total_rows) * 100
+
+def predict_next_event(train_df, test_df):
+    # label encoder for concept:name
+    enc1 = LabelEncoder()
+    
+    # label encoder for lifecycle:transition
+    enc2 = LabelEncoder()
+    
+    # encode train labels and features
+    train_labels = enc1.fit_transform(train_df['next_event'])
+    train_features = prep_features(train_df, enc1, enc2)
+    
+    # encode test labels and features
+    test_labels = enc1.fit_transform(test_df['next_event'])
+    test_features = prep_features(test_df, enc1, enc2)
+    
+    # train event prediction model
+    rf = train_random_forest(train_features, train_labels)
+    
+    # perform prediction on test features
+    predicted_labels = rf.predict(test_features)
+    
+    # print prediction results
+    print(evaluate_prediction(test_labels, predicted_labels))
+    
+    # remove added columns from test_df
+    test_df.drop(['next_event'], axis=1, inplace=True)
+    test_df['predicted_next_event'] = enc1.inverse_transform(predicted_labels)
+    
+    return predicted_labels
+
 def full_prediction(event_df):
     # drop duplicate rows
     event_df.drop_duplicates()
@@ -146,7 +206,13 @@ def full_prediction(event_df):
     
     # obtain column for predicted event
     event_prediction = predict_next_event(train_df, test_df)
+    test_df = predict_time(train_df, test_df)
+    print(test_df)
+    
+    test_df.to_csv('naive_prediction.csv', index=False)
 
 if __name__ == "__main__":
-    file_path = "BPI_Challenge_2012.xes"
+    file_path = "BPI_Challenge_2012.xes.gz"
     event_df, event_log = xes_to_df(file_path)
+    event_df = clean_data(event_df)
+    full_prediction(event_df)

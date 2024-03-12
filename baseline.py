@@ -24,24 +24,18 @@ def make_baseline_time(df_train):
     # remove worthless values
     df_sorted['time_until_next'] = df_sorted['time_until_next'].mask(
         df_sorted['time_until_next'] < pd.Timedelta("0 days"))
-
-    # tracefilter_log_pos = pm.filter_event_attribute_values(df_sorted, "case:concept:name", ["173688"], level="event", retain=True)
-
+    
     # setup the dataframe
     average_df = pd.DataFrame()
-    cases = ['A_SUBMITTED', 'A_PARTLYSUBMITTED', 'A_PREACCEPTED', 'W_Completeren aanvraag', 'A_ACCEPTED', 'O_SELECTED',
-             'A_FINALIZED',
-             'O_CREATED', 'O_SENT', 'O_SENT_BACK', 'W_Valideren aanvraag', 'A_REGISTERED', 'A_APPROVED', 'O_ACCEPTED',
-             'W_Wijzigen contractgegevens', 'A_ACTIVATED', 'A_DECLINED', 'A_CANCELLED', 'W_Completeren aanvraag',
-             'W_Nabellen incomplete dossiers', 'W_Afhandelen leads', 'W_Nabellen offertes', 'W_Beoordelen fraude']
-
+    relative_indeces = df_sorted['relative_index'].unique()
+    
     # get all the average times for the tasks
-    for case in cases:
-        temp_df = df_sorted.loc[df_sorted['concept:name'] == case].copy()
-        temp_data = [[case, temp_df['time_until_next'].mean()]]
+    for index in relative_indeces:
+        temp_df = df_sorted.loc[df_sorted['relative_index'] == index].copy()
+        temp_data = [[index, temp_df['time_until_next'].mean()]]
         average_df = average_df._append(temp_data, ignore_index=True)
 
-    average_df.rename(columns={0: 'concept:name', 1: 'time_until_next'}, inplace=True)
+    average_df.rename(columns={0: 'relative_index', 1: 'time_until_next'}, inplace=True)
     return (average_df)
 
 
@@ -90,8 +84,9 @@ def make_naive_prediction(df_train, df_test):
     df_test = df_test.merge(action_at_index, on='relative_index', how='left')
 
     # then we will merge on the average time untill the next action based on the current action
-    df_test = df_test.merge(time_at_action, on='concept:name', how='left')
+    df_test = df_test.merge(time_at_action, on='relative_index', how='left')
 
+    print(df_test)
     df_test.to_csv('naive_prediction.csv', index=False)
     
 def split_code(cleaned_df):

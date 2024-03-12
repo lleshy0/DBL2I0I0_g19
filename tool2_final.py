@@ -8,6 +8,7 @@ from sklearn.linear_model import LinearRegression
 import sklearn.metrics as sm
 from scipy import stats
 import warnings
+import pickle
 
 
 def get_next_event(group):
@@ -74,6 +75,12 @@ def make_linear_regression_time(df_train):
     y_train = y_train.to_frame()
     regr = LinearRegression()
     regr.fit(x_train,y_train)
+    
+    model_pkl_file = "regression_model.pkl"
+    
+    with open(model_pkl_file, 'wb') as file:
+        pickle.dump(regr, file)
+        
     return regr
 
 def predict_time(train_df, test_df):
@@ -132,6 +139,11 @@ def train_random_forest(train_features, train_labels):
 
     # train the model on training data
     rf.fit(train_features, train_labels)
+    
+    model_pkl_file = "random_forest_model.pkl"
+    
+    with open(model_pkl_file, 'wb') as file:
+        pickle.dump(rf, file)
     
     return rf
 

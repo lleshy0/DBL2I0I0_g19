@@ -21,6 +21,9 @@ overlapping_cases = train_cases & test_cases
 train_df_cleaned = train_df[~train_df['case:concept:name'].isin(overlapping_cases)]
 test_df_cleaned = test_df[~test_df['case:concept:name'].isin(overlapping_cases)]
 
+train_df_cleaned.to_csv('filepath.csv', index=False)
+test_df_cleaned.to_csv('filepath.csv', index=False)
+
 event_types = df_sorted['concept:name'].unique()
 colors = plt.cm.rainbow(np.linspace(0, 1, len(event_types)))
 color_dict = dict(zip(event_types, colors))

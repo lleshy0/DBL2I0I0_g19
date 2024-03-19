@@ -1,17 +1,23 @@
 import pm4py as pm
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import LabelBinarizer
 import numpy as np
 from pm4py.objects.conversion.log import converter as xes_converter
 import warnings
 import pickle
 
+CATEGORIES = ['A_ACCEPTED', 'A_ACTIVATED', 'A_APPROVED', 'A_CANCELLED', 'A_DECLINED', 'A_FINALIZED', 'A_PARTLYSUBMITTED', 'A_PREACCEPTED', 'A_REGISTERED', 'A_SUBMITTED', 
+              'O_ACCEPTED', 'O_CANCELLED', 'O_CREATED', 'O_DECLINED', 'O_SELECTED', 'O_SENT', 'O_SENT_BACK', 'W_Afhandelen leads', 'W_Beoordelen fraude', 'W_Completeren aanvraag', 
+              'W_Nabellen incomplete dossiers', 'W_Nabellen offertes', 'W_Valideren aanvraag', 'W_Wijzigen contractgegevens', '[TRACE_START]', '[TRACE_END]']
+
+cat_type = pd.CategoricalDtype(categories=CATEGORIES, ordered=False)
+
 def xes_to_df(file_path):
     event_log = pm.read_xes(file_path)
     event_df = pm.convert_to_dataframe(event_log)
 
-    return event_df, event_log
+    return event_df
 
 def get_next_event(group):
     group['next_event'] = group['concept:name'].shift(-1)
@@ -68,7 +74,7 @@ def prep_features(df):
     
     # add previous event
     temp = pd.DataFrame()
-    temp['previous_event'] = append_previous_event(features)
+    temp['previous_event'] = append_previous_event(features).astype(cat_type)
     temp = pd.get_dummies(temp['previous_event'], dtype=int)
     features = pd.concat([features, temp], axis=1)
     
@@ -78,6 +84,9 @@ def prep_features(df):
     # drop timestamp columns
     features.drop(['time:timestamp'], axis=1, inplace=True)
     features.drop(['case:REG_DATE'], axis=1, inplace=True)
+    
+    # cast concept:name to category type
+    features['concept:name'] = features['concept:name'].astype(cat_type)
 
     # encode categorical variables
     features = pd.concat([features, pd.get_dummies(features['concept:name'], dtype=int)], axis=1)
@@ -91,19 +100,46 @@ def prep_features(df):
     return features
 
 def train_model(train_df):
+    # prepare features
     features = prep_features(train_df)
-    labels = append_next_event(train_df)
+    
+    # prepare labels
+    labels = pd.get_dummies(append_next_event(train_df).astype(cat_type), dtype=int)
     
     # instantiate model with n decision trees
     rf = RandomForestClassifier(n_estimators = 100, random_state = 42)
 
     # train the model on training data
-    rf.fit(train_features, train_labels)
+    rf.fit(features, labels)
     
     return rf
 
+def evaluate_event_prediction(test_labels, prediction_labels):
+    # set up temp df
+    df = pd.DataFrame()
+    df['A'] = test_labels
+    df['B'] = prediction_labels
+    
+    # Count the number of rows where test equals prediction
+    same_values_count = len(df[df['A'] == df['B']])
+
+    # Total number of rows in the DataFrame
+    total_rows = len(df)
+
+    # Calculate the percentage
+    return (same_values_count / total_rows) * 100
+
 if __name__ == "__main__":
-    file_path = "BPI_Challenge_2012.xes"
-    train_df, event_log = xes_to_df(file_path)
-    #print(train_df)
-    print(prep_features(train_df))
+    # import train data
+    file_path = "train.xes"
+    train_df = pm.read_xes(file_path)
+    
+    # train model
+    model = train_model(train_df)
+    
+    # export model to file
+    model_pkl_file = "event_model.pkl"  
+    with open(model_pkl_file, 'wb') as file:
+        pickle.dump(model, file)
+    
+    

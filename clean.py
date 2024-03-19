@@ -3,10 +3,11 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from dateutil import parser
 import numpy as np
+import pm4py as pm
 
-df = pd.read_csv("file_path.csv")
+df = pm.read_xes("BPI_Challenge_2012.xes")
 
-df['time:timestamp'] = df['time:timestamp'].apply(lambda x: parser.parse(x))
+df['time:timestamp'] = pd.to_datetime(df['time:timestamp'])
 
 df_sorted = df.sort_values('time:timestamp')
 
@@ -21,8 +22,11 @@ overlapping_cases = train_cases & test_cases
 train_df_cleaned = train_df[~train_df['case:concept:name'].isin(overlapping_cases)]
 test_df_cleaned = test_df[~test_df['case:concept:name'].isin(overlapping_cases)]
 
-train_df_cleaned.to_csv('filepath.csv', index=False)
-test_df_cleaned.to_csv('filepath.csv', index=False)
+pm.write_xes(train_df_cleaned, "train.xes")
+pm.write_xes(test_df_cleaned, "test.xes")
+
+#train_df_cleaned.to_csv('train.csv', index=False)
+#test_df_cleaned.to_csv('test.csv', index=False)
 
 event_types = df_sorted['concept:name'].unique()
 colors = plt.cm.rainbow(np.linspace(0, 1, len(event_types)))

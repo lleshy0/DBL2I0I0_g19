@@ -7,9 +7,9 @@ from pm4py.objects.log.importer.xes import importer as xes_importer
 import pandas as pd
 import tool2_final as tool
 
-def plot_conf_matrix(y_true, y_pred):
+def plot_conf_matrix(y_true, y_pred, title):
     ConfusionMatrixDisplay.from_predictions(y_true, y_pred, include_values=False, xticks_rotation='vertical')
-    plt.title('Confusion Matrix for Baseline Event Prediction')
+    plt.title(title)
     plt.show()
     
 

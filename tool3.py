@@ -11,6 +11,7 @@ import warnings
 import pickle
 import event_conf_matrix as mat
 import plot_features as pt
+from sklearn.preprocessing import LabelEncoder
 
 def xes_to_df(file_path):
     event_log = pm.read_xes(file_path)
@@ -24,15 +25,15 @@ def event_prediction(test_df):
     with open(event_model_pkl_file, 'rb') as file:  
         model = pickle.load(file)
     
+    # prepare features and labels
     features = ep.prep_features(test_df)
     true_labels = ep.append_next_event(test_df)
-    features.to_csv("test_features.csv")
     
     # run prediction
     pred_labels = pd.DataFrame(model.predict(features))
-    pred_labels.columns = ep.CATEGORIES
-    pred_labels = pred_labels.idxmax(axis=1)
+    pred_labels = ep.enc_name.inverse_transform(pred_labels)
     
+    # plots
     pt.plot_feature_importance(model, features.columns)
     
     return true_labels, pred_labels
@@ -49,6 +50,10 @@ if __name__ == "__main__":
     # evaluate event prediction on test set
     true_labels, pred_labels = event_prediction(test_df)
     
+    # print accuracy of the model
     print("Event prediction accuracy: ")
     print(ep.evaluate_event_prediction(true_labels, pred_labels))
+    
+    # plots
+    mat.plot_conf_matrix(true_labels, pred_labels, "Confusion Matrix for Event Prediction using Random Forest")
     

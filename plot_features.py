@@ -7,7 +7,7 @@ def plot_feature_importance(forest, feature_names):
     importances = forest.feature_importances_
     indices = np.argsort(importances)
 
-    plt.title('Feature Importances')
+    plt.title('Random forest model feature importances')
     plt.barh(range(len(indices)), importances[indices], color='b', align='center')
     plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
     plt.xlabel('Relative Importance')

@@ -165,3 +165,4 @@ BPI_Challenge_2012.xes
 *.csv
 *.xes
 *.pkl
+*.keras

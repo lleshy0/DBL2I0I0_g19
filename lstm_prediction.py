@@ -19,7 +19,7 @@ def predict(df_test):
     
     df_test_copy = df_test_copy.iloc[5:]
     
-    model_lstm = load_model('model_lstm/')
+    model_lstm = load_model('lstm_time_model.keras')
     
     df_test_copy['lstm_prediction'] = model_lstm.predict(x_test).flatten() 
     df_test_copy['time_prediction'] = pd.to_timedelta(df_test_copy['lstm_prediction'], unit='ms')
@@ -30,6 +30,7 @@ def evaluate(df_test):
     df = df.dropna()
     mea = mean_absolute_error(df['time_until_next_millisec'], df['lstm_prediction'])
     mea = pd.to_timedelta(mea, unit='ms')
+    print("Time prediction - mean absolute error: ")
     print(mea)
     
     
@@ -45,28 +46,8 @@ def df_to_X_y(df,window_size=5):
     x = np.asarray(x).astype('float32')    
     return np.array(x), np.array(y)    
 
-def split_data(cleaned_df):
-
-    train_traces, test_traces= np.split(cleaned_df, [int(.75 *len(cleaned_df))])
-
-    sorted_test = test_traces.sort_values(by='case:REG_DATE')
-
-    lowest_start_time = sorted_test['case:REG_DATE'].iloc[0]
-
-    train_traces = train_traces[train_traces['time:timestamp'] <= lowest_start_time]
-
-    return train_traces, test_traces
-
-def xes_to_df(file_path):
-    event_log = pm.read_xes(file_path)
-    event_df = pm.convert_to_dataframe(event_log)
-
-    return event_df, event_log
-
 if __name__ == "__main__":
-    file_path = "BPI_Challenge_2012.xes.gz"
+    file_path = "test.xes"
     warnings.filterwarnings('ignore')
-    event_df, event_log = xes_to_df(file_path)
-    # split data into train and test sets
-    train_df, test_df = split_data(event_df)
+    test_df = pm.read_xes(file_path)
     predict(test_df)

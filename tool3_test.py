@@ -1,16 +1,15 @@
-
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from collections import defaultdict
 from tensorflow import keras
+from keras.models import Sequential
+from keras.layers import Embedding, LSTM, Dense
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
-from keras. models import Sequential
-from keras.layers import LSTM, Dense, Embedding
 
 # Load the dataset
-file_path = "C:\Henrique\TUE\YEAR2\Q3\dbl\csv_2012.csv"  # Replace with your actual file path
+file_path = "c:\Henrique\TUE\YEAR2\Q3\dbl\csv_2012.csv"  # Update with your file path
 df = pd.read_csv(file_path)
 
 # Preprocess the dataset
@@ -24,74 +23,80 @@ overlapping_cases = train_cases & test_cases
 train_df_cleaned = train_df[~train_df['case:concept:name'].isin(overlapping_cases)]
 test_df_cleaned = test_df[~test_df['case:concept:name'].isin(overlapping_cases)]
 
-def create_sequences(df):
-        grouped = df.groupby('case:concept:name')
-        X, Y = [], []
-        for name, group in grouped:
-            events = list(group['concept:name'])
-            for i in range(1, len(events)):
-                X.append(events[:i])
-                Y.append(events[i:])
-        return X, Y
+# Transform dataframe into sequences of events for each trace
+def get_event_sequences(df):
+    sequences = defaultdict(list)
+    for _, row in df.iterrows():
+        trace_id = row['case:concept:name']
+        event = row['concept:name']
+        sequences[trace_id].append(event)
+    return sequences
 
-def evaluate_model(model, X, Y, tokenizer):
-        # Predict the sequences
-        predictions = model.predict(X)
+# Transforming both training and testing data
+train_sequences = get_event_sequences(train_df_cleaned)
+test_sequences = get_event_sequences(test_df_cleaned)
 
-        # Convert predictions to sequence of integers
-        predictions_seq = np.argmax(predictions, axis=-1)
+# Tokenization and data preparation
+tokenizer = Tokenizer(filters='', lower=False, split='\n')
+tokenizer.fit_on_texts(['\n'.join(seq) for seq in train_sequences.values()])
 
-        # Convert true values to sequence of integers
-        Y_seq = np.argmax(Y, axis=-1)
+# Function to create dataset
+def create_dataset(sequences, tokenizer, max_sequence_len):
+    input_sequences, output_sequences = [], []
+    for _, seq in sequences.items():
+        token_list = tokenizer.texts_to_sequences(['\n'.join(seq)])[0]
+        for i in range(1, len(token_list)):
+            n_gram_sequence = token_list[:i+1]
+            input_sequences.append(n_gram_sequence[:-1])
+            output_sequences.append(n_gram_sequence[-1])
+    return pad_sequences(input_sequences, maxlen=max_sequence_len, padding='pre'), np.array(output_sequences)
 
-        # Calculate MAE and MSE
-        mae = mean_absolute_error(Y_seq.flatten(), predictions_seq.flatten())
-        mse = mean_squared_error(Y_seq.flatten(), predictions_seq.flatten())
+max_sequence_len = 10  # Adjust as necessary
+X_train, y_train = create_dataset(train_sequences, tokenizer, max_sequence_len)
+y_train = to_categorical(y_train, num_classes=len(tokenizer.word_index) + 1)
 
-        return mae, mse
+# Building the LSTM model
+model = Sequential()
+model.add(Embedding(input_dim=len(tokenizer.word_index) + 1, output_dim=100, input_length=max_sequence_len))
+model.add(LSTM(100, return_sequences=True))
+model.add(LSTM(100))
+model.add(Dense(len(tokenizer.word_index) + 1, activation='softmax'))
 
-if __name__ == "__main__":
-    # Function to create sequences and their corresponding outputs
-    
+# Compiling the model
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-    # Create sequences for training and testing data
-    X_train, Y_train = create_sequences(train_df_cleaned)
-    X_test, Y_test = create_sequences(test_df_cleaned)
+# Training the model
+model.fit(X_train, y_train, epochs=5, batch_size=128)  # Adjust epochs and batch size as needed
 
-    # Tokenize the events
-    tokenizer = Tokenizer()
-    tokenizer.fit_on_texts(X_train + Y_train + X_test + Y_test)
-    vocab_size = len(tokenizer.word_index) + 1
+# Prediction function
+def predict_suffix(model, tokenizer, prefix, max_length):
+    for _ in range(max_length):
+        sequence = tokenizer.texts_to_sequences([prefix])[0]
+        sequence = pad_sequences([sequence], maxlen=max_sequence_len, padding='pre')
+        predicted = model.predict(sequence, verbose=0)
+        predicted = np.argmax(predicted, axis=-1)  # Get the class with the highest probability
+        if predicted == 0:
+            break
+        next_event = tokenizer.index_word[predicted[0]]
+        prefix += '\n' + next_event
+    return prefix.split('\n')[1:]
 
-    # Convert and pad sequences
-    X_train_seq = tokenizer.texts_to_sequences(X_train)
-    X_test_seq = tokenizer.texts_to_sequences(X_test)
-    max_seq_length = max([len(seq) for seq in X_train_seq + X_test_seq])
-    X_train_pad = pad_sequences(X_train_seq, maxlen=max_seq_length, padding='pre')
-    X_test_pad = pad_sequences(X_test_seq, maxlen=max_seq_length, padding='pre')
+# Function to predict suffixes for test data
+def predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, suffix_len=5):
+    predictions = {}
+    for case_id, sequence in test_sequences.items():
+        prefix_len = len(sequence) // 2  # or set a specific length
+        prefix = '\n'.join(sequence[:prefix_len])
+        predicted_suffix = predict_suffix(model, tokenizer, prefix, suffix_len)
+        predictions[case_id] = (prefix, predicted_suffix)
+    return predictions
 
-    # Prepare output sequences
-    Y_train_seq = tokenizer.texts_to_sequences(Y_train)
-    Y_test_seq = tokenizer.texts_to_sequences(Y_test)
-    Y_train_pad = pad_sequences(Y_train_seq, maxlen=max_seq_length, padding='post')
-    Y_test_pad = pad_sequences(Y_test_seq, maxlen=max_seq_length, padding='post')
-    Y_train_cat = np.array([to_categorical(seq, num_classes=vocab_size) for seq in Y_train_pad])
-    Y_test_cat = np.array([to_categorical(seq, num_classes=vocab_size) for seq in Y_test_pad])
+# Generating predictions for test data
+predicted_suffixes = predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, 5)
 
-    # Build the LSTM model
-    model = Sequential()
-    model.add(Embedding(vocab_size, output_dim=50, input_length=max_seq_length))
-    model.add(LSTM(50, return_sequences=True))
-    model.add(Dense(vocab_size, activation='softmax'))
-
-    # Compile and train the model
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit(X_train_pad, Y_train_cat, epochs=1, batch_size=32)
-
-    # Prediction and Evaluation
-    
-
-
-    mae, mse = evaluate_model(model, X_test_pad, Y_test_cat, tokenizer)
-    print(f"Mean Absolute Error: {mae}")
-    print(f"Mean Squared Error: {mse}")
+# Displaying predictions for a few cases
+for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
+    print(f"Case ID: {case_id}")
+    print("Prefix:", prefix)
+    print("Predicted Suffix:", suffix)
+    print("\n")

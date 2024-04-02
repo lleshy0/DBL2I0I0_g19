@@ -8,7 +8,7 @@ import pandas as pd
 import tool2_final as tool
 
 def plot_conf_matrix(y_true, y_pred, title):
-    ConfusionMatrixDisplay.from_predictions(y_true, y_pred, include_values=False, xticks_rotation='vertical')
+    ConfusionMatrixDisplay.from_predictions(y_true, y_pred, include_values=False, xticks_rotation='vertical', cmap='binary')
     plt.title(title)
     plt.show()
     
@@ -18,5 +18,5 @@ if __name__ == "__main__":
     prediction_df = pd.read_csv(filepath)
     y_true = prediction_df['next_event']
     y_pred = prediction_df['naive_prediction_action']
-    plot_conf_matrix(y_true, y_pred)
+    plot_conf_matrix(y_true, y_pred, "Confusion Matrix for Event Prediction Baseline")
     

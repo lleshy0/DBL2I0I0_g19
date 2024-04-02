@@ -10,10 +10,49 @@ from keras. models import Sequential
 from keras.layers import LSTM, Dense, Embedding
 import pickle
 import train_suffix_prediction as sp
+from pyxdameraulevenshtein import damerau_levenshtein_distance
+
+def detokenize_suffix(suffix, tokenizer):
+    detokenized = []
+    index_word = {index: word for word, index in tokenizer.word_index.items()}
+    
+    for token in suffix:
+        detokenized.append(tokenizer.index_word.get(token, None))
+    return detokenized
+
+def evaluate_event_suffix_predictions(true_suffixes_list, predicted_suffixes_list):
+    if len(true_suffixes_list) != len(predicted_suffixes_list):
+        raise ValueError("The true suffixes and predicted suffixes must have the same length.")
+
+    total_accuracy = 0
+
+    for true_suffix, predicted_suffix in zip(true_suffixes_list, predicted_suffixes_list):
+        # Create a mapping of events to unique characters
+        event_mapping = {event: str(i) for i, event in enumerate(set(detokenize_suffix(true_suffix, tokenizer) + detokenize_suffix(predicted_suffix, tokenizer)))}
+        
+        # Apply the mapping to convert event sequences into "strings"
+        true_str = ''.join([event_mapping[event] for event in true_suffix])
+        predicted_str = ''.join([event_mapping[event] for event in predicted_suffix])
+        
+        # Calculate the Damerau-Levenshtein distance
+        distance = damerau_levenshtein_distance(true_str, predicted_str)
+        
+        # Normalize the distance to get a score between 0 and 1
+        max_len = max(len(true_str), len(predicted_str))
+        normalized_distance = distance / max_len if max_len > 0 else 0
+        
+        # Calculate accuracy for the pair and accumulate
+        accuracy = 1 - normalized_distance
+        total_accuracy += accuracy
+
+    # Compute the average accuracy across all suffixes
+    average_accuracy = total_accuracy / len(true_suffixes_list) if true_suffixes_list else 0
+    return average_accuracy
 
 def evaluate_model(model, X, Y, tokenizer):
         # Predict the sequences
         predictions = model.predict(X)
+        print(predictions.shape)
 
         # Convert predictions to sequence of integers
         predictions_seq = np.argmax(predictions, axis=-1)
@@ -24,8 +63,11 @@ def evaluate_model(model, X, Y, tokenizer):
         # Calculate MAE and MSE
         mae = mean_absolute_error(Y_seq.flatten(), predictions_seq.flatten())
         mse = mean_squared_error(Y_seq.flatten(), predictions_seq.flatten())
+        
+        # Calculate accuracy using damerau-leenshtein distance
+        acc = evaluate_event_suffix_predictions(Y, predictions)
 
-        return mae, mse
+        return mae, mse, acc
 
 if __name__ == "__main__":
     # Load the dataset
@@ -55,7 +97,7 @@ if __name__ == "__main__":
     model = keras.models.load_model("suffix_pred_model.keras")
     
     # Prediction and Evaluation
-    mae, mse = evaluate_model(model, X_test_pad, Y_test_cat, tokenizer)
+    mae, mse, acc = evaluate_model(model, X_test_pad, Y_test_cat, tokenizer)
     print(f"Mean Absolute Error: {mae}")
     print(f"Mean Squared Error: {mse}")
-    
+    print(f"Accuracy in terms of Damerau-Levenshtein distance: {acc}")

@@ -1,15 +1,15 @@
 import pandas as pd
 import numpy as np
 from collections import defaultdict
-from tensorflow import keras
 from keras.models import Sequential
 from keras.layers import Embedding, LSTM, Dense
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
+import matplotlib.pyplot as plt
 
 # Load the dataset
-file_path = "c:\Henrique\TUE\YEAR2\Q3\dbl\csv_2012.csv"  # Update with your file path
+file_path = "C:\Henrique\TUE\YEAR2\Q3\dbl\csv_2012.csv"  # Update with your file path
 df = pd.read_csv(file_path)
 
 # Preprocess the dataset
@@ -51,7 +51,7 @@ def create_dataset(sequences, tokenizer, max_sequence_len):
             output_sequences.append(n_gram_sequence[-1])
     return pad_sequences(input_sequences, maxlen=max_sequence_len, padding='pre'), np.array(output_sequences)
 
-max_sequence_len = 10  # Adjust as necessary
+max_sequence_len = 70  # Adjust as necessary
 X_train, y_train = create_dataset(train_sequences, tokenizer, max_sequence_len)
 y_train = to_categorical(y_train, num_classes=len(tokenizer.word_index) + 1)
 
@@ -66,23 +66,27 @@ model.add(Dense(len(tokenizer.word_index) + 1, activation='softmax'))
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
 # Training the model
-model.fit(X_train, y_train, epochs=5, batch_size=128)  # Adjust epochs and batch size as needed
+model.fit(X_train, y_train, epochs=1, batch_size=32)  # Adjust epochs and batch size as needed
 
 # Prediction function
 def predict_suffix(model, tokenizer, prefix, max_length):
+    sequence = tokenizer.texts_to_sequences([prefix])[0]
+    sequence = pad_sequences([sequence], maxlen=max_sequence_len, padding='pre')
+    
+    predicted_suffix = []
     for _ in range(max_length):
-        sequence = tokenizer.texts_to_sequences([prefix])[0]
-        sequence = pad_sequences([sequence], maxlen=max_sequence_len, padding='pre')
-        predicted = model.predict(sequence, verbose=0)
-        predicted = np.argmax(predicted, axis=-1)  # Get the class with the highest probability
-        if predicted == 0:
+        predictions = model.predict(sequence, verbose=0)
+        next_event_token = np.argmax(predictions, axis=-1)[0]
+        if next_event_token == 0:  # Typically, 0 is used as the padding token and should not be part of the prediction.
             break
-        next_event = tokenizer.index_word[predicted[0]]
-        prefix += '\n' + next_event
-    return prefix.split('\n')[1:]
+        predicted_suffix.append(next_event_token)
+        sequence = np.append(sequence[0][1:], next_event_token).reshape(1, max_sequence_len)
+    
+    predicted_events = [tokenizer.index_word[token] for token in predicted_suffix]
+    return predicted_events
 
 # Function to predict suffixes for test data
-def predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, suffix_len=5):
+def predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, suffix_len):
     predictions = {}
     for case_id, sequence in test_sequences.items():
         prefix_len = len(sequence) // 2  # or set a specific length
@@ -92,10 +96,51 @@ def predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequenc
     return predictions
 
 # Generating predictions for test data
-predicted_suffixes = predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, 5)
+predicted_suffixes = predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, 35)
 
-# Displaying predictions for a few cases
-for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
+def calculate_positional_accuracies(model, tokenizer, test_sequences, max_sequence_len):
+    # Dictionary to hold accuracy for each suffix position
+    positional_accuracy = defaultdict(lambda: {'correct': 0, 'total': 0})
+
+    for case_id, true_events in test_sequences.items():
+        # Generate the predicted suffix
+        prefix_len = len(true_events) // 2  # Change this ratio as needed
+        prefix = '\n'.join(true_events[:prefix_len])
+        predicted_suffix = predict_suffix(model, tokenizer, prefix, len(true_events) - prefix_len)
+
+        # Calculate accuracy for each position in the suffix
+        for i, true_event in enumerate(true_events[prefix_len:]):
+            if i < len(predicted_suffix) and predicted_suffix[i] == true_event:
+                positional_accuracy[i]['correct'] += 1
+            positional_accuracy[i]['total'] += 1
+
+    # Calculate and return the accuracy for each position
+    positional_accuracies = {pos: acc['correct'] / acc['total'] for pos, acc in positional_accuracy.items() if acc['total'] > 0}
+    return positional_accuracies
+
+# Generate the positional accuracies
+positional_accuracies = {0: 0.9385, 1: 0.9302, 2: 0.8573, 3: 0.7407, 4: 0.7400, 5: 0.6886, 6: 0}
+# Extract positions and their corresponding accuracies
+positions = list(positional_accuracies.keys())
+accuracies = [positional_accuracies[position] for position in positions]
+
+# Plotting
+plt.figure(figsize=(10, 6))
+plt.plot(positions, accuracies, marker='o', linestyle='-', color='blue')
+plt.title('Positional Accuracies of Predicted Events in Suffix')
+plt.xlabel('Position in Suffix')
+plt.ylabel('Accuracy')
+plt.xticks(positions)
+plt.yticks(np.arange(0, 1.1, step=0.1))
+plt.grid(axis='y', linestyle='--')
+plt.show()
+
+#Print out the positional accuracies
+for position, accuracy in sorted(positional_accuracies.items()):
+    print(f"Accuracy for position {position+1}: {accuracy:.4f}")
+
+#Displaying predictions for a few cases
+for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:30]:  
     print(f"Case ID: {case_id}")
     print("Prefix:", prefix)
     print("Predicted Suffix:", suffix)

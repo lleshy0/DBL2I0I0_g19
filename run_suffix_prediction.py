@@ -10,30 +10,35 @@ from keras. models import Sequential
 from keras.layers import LSTM, Dense, Embedding
 import pickle
 import train_suffix_prediction as sp
+from pyxdameraulevenshtein import damerau_levenshtein_distance
 
-def evaluate_model(model, X, Y, tokenizer):
-        # Predict the sequences
-        predictions = model.predict(X)
+# Prediction function
+def predict_suffix(model, tokenizer, prefix, max_length):
+    for _ in range(max_length):
+        sequence = tokenizer.texts_to_sequences([prefix])[0]
+        sequence = pad_sequences([sequence], maxlen=max_sequence_len, padding='pre')
+        predicted = model.predict(sequence, verbose=0)
+        predicted = np.argmax(predicted, axis=-1)  # Get the class with the highest probability
+        if predicted == 0:
+            break
+        next_event = tokenizer.index_word[predicted[0]]
+        prefix += '\n' + next_event
+    return prefix.split('\n')[1:]
 
-        # Convert predictions to sequence of integers
-        predictions_seq = np.argmax(predictions, axis=-1)
-
-        # Convert true values to sequence of integers
-        Y_seq = np.argmax(Y, axis=-1)
-
-        # Calculate MAE and MSE
-        mae = mean_absolute_error(Y_seq.flatten(), predictions_seq.flatten())
-        mse = mean_squared_error(Y_seq.flatten(), predictions_seq.flatten())
-
-        return mae, mse
+# Function to predict suffixes for test data
+def predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, suffix_len=5):
+    predictions = {}
+    for case_id, sequence in test_sequences.items():
+        prefix_len = len(sequence) // 2  # or set a specific length
+        prefix = '\n'.join(sequence[:prefix_len])
+        predicted_suffix = predict_suffix(model, tokenizer, prefix, suffix_len)
+        predictions[case_id] = (prefix, predicted_suffix)
+    return predictions
 
 if __name__ == "__main__":
     # Load the dataset
     file_path = "test.xes"  # Replace with your actual file path
     test_df = pm.read_xes(file_path)
-    
-    # Create sequences for test data
-    X_test, Y_test = sp.create_sequences(test_df)
     
     # Import tokenizer
     tokenizer_file = 'tokenizer.pkl'
@@ -41,21 +46,19 @@ if __name__ == "__main__":
         tokenizer = pickle.load(file)
     vocab_size = len(tokenizer.word_index) + 1
         
-    # Convert and pad sequences
-    X_test_seq = tokenizer.texts_to_sequences(X_test)
-    max_seq_length = max([len(seq) for seq in X_test_seq]) #174
-    X_test_pad = pad_sequences(X_test_seq, maxlen=max_seq_length, padding='pre')
-    
-    # Prepare output sequences
-    Y_test_seq = tokenizer.texts_to_sequences(Y_test)
-    Y_test_pad = pad_sequences(Y_test_seq, maxlen=max_seq_length, padding='post')
-    Y_test_cat = np.array([to_categorical(seq, num_classes=vocab_size) for seq in Y_test_pad])
-    
     # Import model
-    model = keras.models.load_model("suffix_pred_model.keras")
+    model = keras.models.load_model("suffix_pred_model.keras", compile=False)
+    max_sequence_len = sp.max_sequence_len
     
-    # Prediction and Evaluation
-    mae, mse = evaluate_model(model, X_test_pad, Y_test_cat, tokenizer)
-    print(f"Mean Absolute Error: {mae}")
-    print(f"Mean Squared Error: {mse}")
+    # Prepare data
+    test_sequences = sp.get_event_sequences(test_df)
     
+    # Generating predictions for test data
+    predicted_suffixes = predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, 5)
+    
+    # Displaying predictions for a few cases
+    for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
+        print(f"Case ID: {case_id}")
+        print("Prefix:", prefix)
+        print("Predicted Suffix:", suffix)
+        print("\n")

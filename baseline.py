@@ -2,6 +2,7 @@ import pm4py as pm
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+import rf_event_prediction as rf
 
 
 def xes_to_df(file_path):
@@ -85,6 +86,9 @@ def make_naive_prediction(df_train, df_test):
 
     # then we will merge on the average time untill the next action based on the current action
     df_test = df_test.merge(time_at_action, on='relative_index', how='left')
+    
+    # add next event
+    df_test['next_event'] = rf.append_next_event(df_test)
 
     print(df_test)
     df_test.to_csv('naive_prediction.csv', index=False)

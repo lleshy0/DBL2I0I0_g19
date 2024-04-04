@@ -12,6 +12,8 @@ import pickle
 import train_suffix_prediction as sp
 from pyxdameraulevenshtein import damerau_levenshtein_distance
 
+max_sequence_len = sp.max_sequence_len
+
 def calculate_positional_accuracies(model, tokenizer, test_sequences, max_sequence_len):
     # Dictionary to hold accuracy for each suffix position
     positional_accuracy = defaultdict(lambda: {'correct': 0, 'total': 0})
@@ -96,7 +98,6 @@ if __name__ == "__main__":
         
     # Import model
     model = keras.models.load_model("suffix_pred_model.keras", compile=False)
-    max_sequence_len = sp.max_sequence_len
     
     # Prepare data
     test_sequences = sp.get_event_sequences(test_df)
@@ -121,4 +122,4 @@ if __name__ == "__main__":
     for position, accuracy in sorted(positional_accuracies.items()):
         print(f"Accuracy for position {position+1}: {accuracy:.4f}")
     
-    print(damerau-levenshtein_distance_accuracy(model, tokenizer, test_sequences, max_sequence_length))
+    print(damerau-levenshtein_distance_accuracy(model, tokenizer, test_sequences, max_sequence_len))

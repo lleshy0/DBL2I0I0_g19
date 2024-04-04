@@ -36,7 +36,7 @@ def calculate_positional_accuracies(model, tokenizer, test_sequences, max_sequen
 
 def damerau_levenshtein_distance_accuracy(model, tokenizer, test_sequences, max_sequence_len):
     # Prepare data
-    X_test, y_test_indices = create_dataset(test_sequences, tokenizer, max_sequence_len)
+    X_test, y_test_indices = sp.create_dataset(test_sequences, tokenizer, max_sequence_len)
 
     # Predict the suffixes for X_test
     predicted = model.predict(X_test, verbose=0)

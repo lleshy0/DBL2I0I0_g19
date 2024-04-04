@@ -11,7 +11,7 @@ from keras.layers import LSTM, Dense, Embedding
 import pickle
 from collections import defaultdict
 
-max_sequence_len = 10  # Adjust as necessary
+max_sequence_len = 70  # Adjust as necessary
 
 # Transform dataframe into sequences of events for each trace
 def get_event_sequences(df):
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Training the model
-    model.fit(X_train, y_train, epochs=1, batch_size=128)  # Adjust epochs and batch size as needed
+    model.fit(X_train, y_train, epochs=5, batch_size=128)  # Adjust epochs and batch size as needed
 
     # aSve model to file
     model.save("suffix_pred_model.keras")

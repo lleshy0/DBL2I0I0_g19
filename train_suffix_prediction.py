@@ -59,7 +59,7 @@ if __name__ == "__main__":
     model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
     # Training the model
-    model.fit(X_train, y_train, epochs=5, batch_size=128)  # Adjust epochs and batch size as needed
+    model.fit(X_train, y_train, epochs=1, batch_size=128)  # Adjust epochs and batch size as needed
 
     # aSve model to file
     model.save("suffix_pred_model.keras")

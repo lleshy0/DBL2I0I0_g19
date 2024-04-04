@@ -11,6 +11,7 @@ from keras.layers import LSTM, Dense, Embedding
 import pickle
 import train_suffix_prediction as sp
 from pyxdameraulevenshtein import damerau_levenshtein_distance
+from collections import defaultdict
 
 max_sequence_len = sp.max_sequence_len
 
@@ -33,30 +34,6 @@ def calculate_positional_accuracies(model, tokenizer, test_sequences, max_sequen
     # Calculate and return the accuracy for each position
     positional_accuracies = {pos: acc['correct'] / acc['total'] for pos, acc in positional_accuracy.items() if acc['total'] > 0}
     return positional_accuracies
-
-def damerau_levenshtein_distance_accuracy(model, tokenizer, test_sequences, max_sequence_len):
-    # Prepare data
-    X_test, y_test_indices = sp.create_dataset(test_sequences, tokenizer, max_sequence_len)
-
-    # Predict the suffixes for X_test
-    predicted = model.predict(X_test, verbose=0)
-    predicted_indices = np.argmax(predicted, axis=-1)
-
-    total_distance = 0
-    total_length = 0
-
-    for i, predicted_index in enumerate(predicted_indices):
-        predicted_word = tokenizer.index_word[predicted_index] if predicted_index > 0 else ''
-        actual_word = tokenizer.index_word[y_test_indices[i]] if y_test_indices[i] > 0 else ''
-
-        # Calculate the Damerau-Levenshtein distance for each pair of predicted and actual words
-        distance = damerau_levenshtein_distance(predicted_word, actual_word)
-        total_distance += distance
-        total_length += max(len(predicted_word), len(actual_word))
-
-    # Compute an accuracy metric
-    accuracy = (1 - total_distance / total_length) if total_length > 0 else 0
-    return accuracy
 
 # Prediction function
 def predict_suffix(model, tokenizer, prefix, max_length):
@@ -106,20 +83,20 @@ if __name__ == "__main__":
     predicted_suffixes = predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, 5)
     
     # Generate the positional accuracies
-    positional_accuracies = {0: 0.9385, 1: 0.9302, 2: 0.8573, 3: 0.7407, 4: 0.7400, 5: 0.6886, 6: 0}
+    positional_accuracies = calculate_positional_accuracies(model, tokenizer, test_sequences, max_sequence_len)
+    
     # Extract positions and their corresponding accuracies
     positions = list(positional_accuracies.keys())
     accuracies = [positional_accuracies[position] for position in positions]
     
     # Displaying predictions for a few cases
-    # for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
-    #     print(f"Case ID: {case_id}")
-    #     print("Prefix:", prefix)
-    #     print("Predicted Suffix:", suffix)
-    #     print("\n")
+    for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
+        print(f"Case ID: {case_id}")
+        print("Prefix:", prefix)
+        print("Predicted Suffix:", suffix)
+        print("\n")
     
     #Print out the positional accuracies
     for position, accuracy in sorted(positional_accuracies.items()):
         print(f"Accuracy for position {position+1}: {accuracy:.4f}")
     
-    print(damerau-levenshtein_distance_accuracy(model, tokenizer, test_sequences, max_sequence_len))

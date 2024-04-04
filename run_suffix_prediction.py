@@ -10,7 +10,6 @@ from keras. models import Sequential
 from keras.layers import LSTM, Dense, Embedding
 import pickle
 import train_suffix_prediction as sp
-from pyxdameraulevenshtein import damerau_levenshtein_distance
 from collections import defaultdict
 
 max_sequence_len = sp.max_sequence_len

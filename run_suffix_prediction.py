@@ -12,8 +12,34 @@ import pickle
 import train_suffix_prediction as sp
 from pyxdameraulevenshtein import damerau_levenshtein_distance
 
+def evaluate_model_accuracy(model, tokenizer, test_sequences, max_sequence_len):
+    # Prepare data
+    X_test, y_test_indices = create_dataset(test_sequences, tokenizer, max_sequence_len)
+    y_test = to_categorical(y_test_indices, num_classes=len(tokenizer.word_index) + 1)
+
+    # Predict the suffixes for X_test
+    predicted = model.predict(X_test, verbose=0)
+    predicted_indices = np.argmax(predicted, axis=-1)
+
+    total_distance = 0
+    total_length = 0
+
+    for i, predicted_index in enumerate(predicted_indices):
+        predicted_word = tokenizer.index_word[predicted_index] if predicted_index > 0 else ''
+        actual_word = tokenizer.index_word[y_test_indices[i]] if y_test_indices[i] > 0 else ''
+
+        # Calculate the Damerau-Levenshtein distance for each pair of predicted and actual words
+        distance = damerau_levenshtein_distance(predicted_word, actual_word)
+        total_distance += distance
+        total_length += max(len(predicted_word), len(actual_word))
+
+    # Compute an accuracy metric
+    accuracy = (1 - total_distance / total_length) if total_length > 0 else 0
+    return accuracy
+
 # Prediction function
 def predict_suffix(model, tokenizer, prefix, max_length):
+    suffix = ''
     for _ in range(max_length):
         sequence = tokenizer.texts_to_sequences([prefix])[0]
         sequence = pad_sequences([sequence], maxlen=max_sequence_len, padding='pre')
@@ -22,8 +48,8 @@ def predict_suffix(model, tokenizer, prefix, max_length):
         if predicted == 0:
             break
         next_event = tokenizer.index_word[predicted[0]]
-        prefix += '\n' + next_event
-    return prefix.split('\n')[1:]
+        suffix += next_event + '\n' 
+    return suffix.split('\n')[1:]
 
 # Function to predict suffixes for test data
 def predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, suffix_len=5):
@@ -57,8 +83,10 @@ if __name__ == "__main__":
     predicted_suffixes = predict_suffixes_for_test_data(model, tokenizer, test_sequences, max_sequence_len, 5)
     
     # Displaying predictions for a few cases
-    for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
-        print(f"Case ID: {case_id}")
-        print("Prefix:", prefix)
-        print("Predicted Suffix:", suffix)
-        print("\n")
+    # for case_id, (prefix, suffix) in list(predicted_suffixes.items())[:5]:  # Display first 5 cases
+    #     print(f"Case ID: {case_id}")
+    #     print("Prefix:", prefix)
+    #     print("Predicted Suffix:", suffix)
+    #     print("\n")
+        
+    print(evaluate_model_accuracy(model, tokenizer, test_sequences, max_sequence_length))

@@ -13,7 +13,7 @@ from keras.layers import Activation, Dense, Dropout, Embedding, LSTM
 from keras.models import Sequential
 from keras.layers import *
 from keras.callbacks import ModelCheckpoint
-from keras.optimizers import Adam
+from keras.optimizers import Adam, Adadelta
 from keras.losses import MeanSquaredError
 from keras.metrics import RootMeanSquaredError
 import tensorflow as tf
@@ -48,11 +48,12 @@ def lstm_time(df_train):
     model_lstm.add(LSTM(64))
     model_lstm.add(Dense(8,'relu'))
     model_lstm.add(Dense(1,'linear'))
+    model_lstm.add(Dropout(0.4))
     
-    #mcp = ModelCheckpoint('model_lstm/', save_best_only = True)
-    model_lstm.compile(loss=MeanSquaredError(), optimizer=Adam(learning_rate=0.1), metrics=[RootMeanSquaredError()])
+    mcp = ModelCheckpoint('model_lstm/', save_best_only = True)
+    model_lstm.compile(loss=MeanSquaredError(), optimizer=Adadelta(learning_rate=0.01), metrics=[RootMeanSquaredError()])
     
-    model_lstm.fit(x_array_train,y_array_train,validation_data=(x_array_valid,y_array_valid),epochs=10)
+    model_lstm.fit(x_array_train,y_array_train,validation_data=(x_array_valid,y_array_valid),epochs=10, callbacks=[mcp])
     
     model_lstm.save('lstm_time_model.keras')
         
